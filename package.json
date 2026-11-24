@@ -1,0 +1,9 @@
+{
+  "name": "robo-4xml",
+  "private": true,
+  "type": "module",
+  "description": "Roda o 4XML do Protheus e manda as NF-e 55 ao portal de recebimento",
+  "dependencies": {
+    "playwright-core": "^1.64.0"
+  }
+}

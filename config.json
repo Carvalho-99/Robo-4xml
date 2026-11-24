@@ -1,0 +1,22 @@
+{
+  "url": "https://SEU-SERVIDOR-PROTHEUS.exemplo.com.br:1853/webapp/",
+  "usuario": "usuario-de-integracao",
+  "portal": "https://portal-recebimento-notas.tiforest.workers.dev",
+  "ambiente": "2",
+  "diasParaTras": 7,
+  "minutosSincronizacao": 25,
+  "janela": "oculta",
+  "navegador": "",
+  "filiais": [
+    {
+      "nome": "Forest Paper - Telemaco Borba",
+      "codigo": "010101"
+    },
+    {
+      "nome": "Onze - Telemaco Borba",
+      "codigo": "020101"
+    }
+  ],
+  "maxValores": 400,
+  "diasParaRessincronizar": 3
+}

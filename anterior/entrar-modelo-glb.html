@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar · Robô do 4XML</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papel: #ffffff; --fundo: #f4f4f5; --tinta: #000000; --grafite: #18181b;
+    --linha: #e4e4e7; --meio: #71717a; --claro: #a1a1aa;
+    --ui: "Archivo", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; font-family: var(--ui); color: var(--tinta); background: var(--papel);
+    display: grid; grid-template-columns: 60% 40%;
+  }
+
+  /* ---------- lado do robô ---------- */
+  .cena {
+    position: relative; overflow: hidden;
+    background:
+      radial-gradient(90% 70% at 42% 24%, #ffffff 0%, #f0f0f2 48%, #dedee3 100%);
+  }
+  .cena canvas { display: block; width: 100%; height: 100%; }
+  /* Chão sutil: dá assento ao personagem sem desenhar sombra falsa. */
+  .cena::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 26%;
+    background: linear-gradient(to top, rgba(170,170,182,.22), transparent);
+    pointer-events: none;
+  }
+  .cena::before { content: ""; position: absolute; inset: 0 0 0 auto; width: 1px; background: var(--linha); z-index: 2; }
+
+  /* ---------- lado do login ---------- */
+  .acesso {
+    display: grid; align-content: center; padding: 48px 56px;
+    max-width: 520px; width: 100%;
+  }
+  .marca { display: flex; align-items: center; gap: 12px; margin-bottom: 40px;
+           animation: sobe .5s cubic-bezier(.2,.7,.3,1) both; }
+  .marca svg { width: 36px; height: 36px; flex: none; }
+  .marca b { font-size: 16px; font-weight: 700; letter-spacing: -.01em; display: block; }
+  .marca span { font-size: 12.5px; color: var(--meio); }
+  h1 { font-size: 30px; font-weight: 600; letter-spacing: -.025em; margin: 0 0 8px;
+       animation: sobe .5s .06s cubic-bezier(.2,.7,.3,1) both; }
+  p.ajuda { margin: 0 0 28px; font-size: 14.5px; color: var(--meio); line-height: 1.55; max-width: 40ch;
+            animation: sobe .5s .1s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes sobe { from { opacity: 0; transform: translateY(10px); } }
+
+  .forest {
+    display: flex; align-items: center; justify-content: center; gap: 11px; width: 100%;
+    font: 600 15px var(--ui); padding: 14px; text-decoration: none;
+    border: 1px solid var(--tinta); border-radius: 11px; background: var(--tinta); color: #fff;
+    transition: background .2s, transform .15s, box-shadow .2s;
+    animation: sobe .5s .14s cubic-bezier(.2,.7,.3,1) both;
+  }
+  .forest:hover { background: var(--grafite); box-shadow: 0 10px 26px -12px rgba(0,0,0,.55); }
+  .forest:active { transform: scale(.985); }
+  .forest:focus-visible { outline: 2px solid var(--tinta); outline-offset: 3px; }
+  .forest svg { width: 17px; height: 17px; flex: none; }
+
+  details.senha { margin-top: 22px; animation: sobe .5s .18s cubic-bezier(.2,.7,.3,1) both; }
+  details.senha summary {
+    font-size: 13.5px; color: var(--meio); cursor: pointer; list-style: none;
+    padding: 6px 0; transition: color .18s; display: inline-block;
+  }
+  details.senha summary:hover { color: var(--tinta); }
+  details.senha summary::-webkit-details-marker { display: none; }
+  details.senha[open] summary { margin-bottom: 16px; }
+  label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 7px; }
+  input {
+    width: 100%; font: 15px var(--ui); padding: 12px 13px; margin-bottom: 16px;
+    border: 1px solid var(--linha); border-radius: 10px; background: var(--papel); color: var(--tinta);
+    transition: border-color .18s, box-shadow .18s;
+  }
+  input:focus { outline: none; border-color: var(--tinta); box-shadow: 0 0 0 3px rgba(0,0,0,.08); }
+  button.entrar {
+    width: 100%; font: 600 15px var(--ui); padding: 12px; border: 1px solid var(--linha);
+    border-radius: 10px; background: var(--papel); color: var(--tinta); cursor: pointer;
+    transition: border-color .18s, background .18s, transform .14s;
+  }
+  button.entrar:hover:not(:disabled) { border-color: var(--tinta); background: var(--fundo); }
+  button.entrar:active:not(:disabled) { transform: scale(.985); }
+  button.entrar:disabled { opacity: .55; cursor: default; }
+
+  .erro {
+    display: none; gap: 10px; align-items: flex-start; margin: 0 0 20px;
+    font-size: 13.5px; line-height: 1.5; padding: 12px 14px;
+    border: 1px solid var(--linha); border-left: 3px solid var(--tinta);
+    border-radius: 0 10px 10px 0; background: var(--fundo);
+  }
+  .erro[data-visivel] { display: flex; animation: treme .32s; }
+  .erro svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+  @keyframes treme { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+  .pe { margin: 40px 0 0; font: 400 11.5px/1.5 var(--mono); color: var(--claro);
+        animation: sobe .5s .22s cubic-bezier(.2,.7,.3,1) both; }
+
+  /* Notebooks de 1366x768 entram aqui com folga; só abaixo de 900 o
+     personagem sai, para o formulário não ficar espremido. */
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; }
+    .cena { display: none; }
+    .acesso { justify-self: center; padding: 40px 28px; max-width: 460px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cena" id="cena" aria-hidden="true"></div>
+
+<main class="acesso">
+  <div class="marca">
+    <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect x="1" y="1" width="30" height="30" rx="8" fill="#000"/>
+      <rect x="8.5" y="11" width="15" height="11" rx="2.5" stroke="#fff" stroke-width="1.6"/>
+      <path d="M16 7.5V11" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="16" cy="6.4" r="1.5" fill="#fff"/>
+      <circle cx="12.6" cy="16.5" r="1.5" fill="#fff"/>
+      <circle cx="19.4" cy="16.5" r="1.5" fill="#fff"/>
+    </svg>
+    <div>
+      <b>Robô do 4XML</b>
+      <span>Central de automação de notas fiscais</span>
+    </div>
+  </div>
+
+  <h1>Entrar</h1>
+  <p class="ajuda">O painel usa a mesma conta do portal de recebimento. Só administradores operam o robô.</p>
+
+  <div class="erro" id="erro">
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="6.6" stroke="currentColor" stroke-width="1.4"/>
+      <path d="M8 4.8v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="8" cy="11.1" r=".9" fill="currentColor"/>
+    </svg>
+    <span id="erroTexto"></span>
+  </div>
+
+  <a class="forest" id="botaoForest" href="/ir-ao-portal">
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="0" y="0" width="7.2" height="7.2" fill="#f25022"/>
+      <rect x="8.8" y="0" width="7.2" height="7.2" fill="#7fba00"/>
+      <rect x="0" y="8.8" width="7.2" height="7.2" fill="#00a4ef"/>
+      <rect x="8.8" y="8.8" width="7.2" height="7.2" fill="#ffb900"/>
+    </svg>
+    Entrar com a conta Forest
+  </a>
+
+  <details class="senha" id="porSenha">
+    <summary>Entrar com e-mail e senha</summary>
+    <form id="forma" novalidate>
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="senha">Senha</label>
+      <input id="senha" type="password" autocomplete="current-password" required>
+      <button class="entrar" id="botao" type="submit">Entrar</button>
+    </form>
+  </details>
+
+  <p class="pe">127.0.0.1:8420 · só esta máquina</p>
+</main>
+
+<script>
+/* ---------------- login ----------------
+   Fica fora do módulo do robô, e roda antes dele: se o WebGL faltar ou o
+   modelo não carregar, isto aqui já está de pé.                           */
+const $ = (s) => document.querySelector(s);
+
+// Se a volta do portal deu errado, ela chega aqui pela barra de endereço.
+const recado = new URLSearchParams(location.search).get("erro");
+if (recado) {
+  $("#erroTexto").textContent = recado;
+  $("#erro").setAttribute("data-visivel", "");
+  history.replaceState(null, "", location.pathname);
+}
+const mostrarErro = (texto) => {
+  $("#erroTexto").textContent = texto;
+  $("#erro").toggleAttribute("data-visivel", Boolean(texto));
+};
+
+$("#forma").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  mostrarErro("");
+  const email = $("#email").value.trim();
+  const senha = $("#senha").value;
+  if (!email || !senha) { mostrarErro("Informe e-mail e senha."); return; }
+  $("#botao").disabled = true;
+  $("#botao").textContent = "Conferindo…";
+  try {
+    const r = await fetch("/api/entrar", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, senha }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) { location.reload(); return; }
+    mostrarErro(d.erro || "Não consegui entrar.");
+  } catch {
+    mostrarErro("Não consegui falar com o painel. Ele ainda está aberto?");
+  }
+  $("#botao").disabled = false;
+  $("#botao").textContent = "Entrar";
+  $("#senha").select();
+});
+</script>
+
+<script type="importmap">
+{ "imports": { "three": "/vendor/three.module.js", "three/addons/": "/vendor/addons/" } }
+</script>
+<script type="module">
+/* ---------------- o robô ----------------
+   Modelo GLB preparado com três controles em cadeia:
+
+     CTRL_Torso -> CTRL_Neck -> CTRL_Head
+
+   A frente do personagem aponta para +X (conferido renderizando o arquivo),
+   e é por isso que o pitch cai no eixo Z e não no X: com o rosto em +X, o
+   eixo que faz a cabeça acenar é o que atravessa os ombros, que aqui é Z.
+   O yaw continua em Y.
+
+   As amplitudes são pequenas de propósito: a cabeça e o pescoço são malhas
+   separadas, e a partir de uns poucos graus a junção abre uma fresta onde se
+   enxerga o mecanismo por dentro. Preferi um movimento discreto e sem defeito
+   a um movimento amplo e quebrado.                                          */
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+// Amplitudes escolhidas depois de renderizar o modelo em leque e olhar a
+// junção da cabeça com o pescoço ângulo por ângulo:
+//
+//   yaw composto    limpo até ~34°; em 44° a base da cabeça começa a destacar
+//   pitch composto  limpo até ~-28° (olhando para baixo) e ~+16° (para cima);
+//                   em +28° a cabeça parece subir do pescoço
+//
+// Fiquei abaixo do limite nos dois: 28° de yaw e 15° de pitch somados. A
+// cabeça leva a maior parte e o pescoço acompanha, que é o que faz o
+// movimento parecer de um corpo e não de uma peça girando.
+const LIMITES = {
+  cabeca:  { yaw: 19.0, pitch: 10.0 },   // graus
+  pescoco: { yaw: 9.0, pitch: 5.0 },
+};
+// Quão depressa cada peça alcança o alvo (por segundo). A cabeça chega
+// primeiro, o pescoço vem atrás: é a defasagem que dá naturalidade. Com
+// amplitude maior, uma perseguição lenta demais faz o robô parecer
+// desconectado do cursor - daí os valores mais altos que os do primeiro corte.
+const PRESSA = { cabeca: 7.0, pescoco: 4.0 };
+
+const cena = document.getElementById("cena");
+const quieto = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+function desistir(motivo) {
+  // Sem robô a tela continua inteira: o formulário nunca dependeu dele.
+  console.info("robô não carregado:", motivo);
+}
+
+if (!cena) {
+  desistir("sem área de cena");
+} else {
+  let render;
+  try {
+    render = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+  } catch (e) {
+    desistir("WebGL indisponível: " + e.message);
+  }
+
+  if (render) {
+    const mundo = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(26, 1, 0.01, 50);
+
+    render.setClearAlpha(0);
+    render.outputColorSpace = THREE.SRGBColorSpace;
+    // Sem isto a carcaça branca estoura e some o relevo das peças.
+    render.toneMapping = THREE.ACESFilmicToneMapping;
+    render.toneMappingExposure = 0.92;
+    cena.appendChild(render.domElement);
+
+    // Luz: uma principal de frente-cima-direita para desenhar o volume, uma
+    // de preenchimento fraca do lado oposto para o lado escuro não fechar, e
+    // um contorno atrás para destacar o perfil do fundo claro.
+    mundo.add(new THREE.HemisphereLight(0xffffff, 0xc8c8d0, 1.35));
+    const principal = new THREE.DirectionalLight(0xffffff, 2.1);
+    principal.position.set(2.4, 1.8, 1.3);
+    mundo.add(principal);
+    const preenche = new THREE.DirectionalLight(0xffffff, 0.55);
+    preenche.position.set(1.2, 0.2, -2.2);
+    mundo.add(preenche);
+    const contorno = new THREE.DirectionalLight(0xffffff, 1.1);
+    contorno.position.set(-1.6, 1.4, -0.8);
+    mundo.add(contorno);
+
+    const alvoMira = new THREE.Vector2(0, 0);       // -1..1, para onde olhar
+    const agora = { cabYaw: 0, cabPit: 0, pesYaw: 0, pesPit: 0 };
+    let ctrlCabeca = null, ctrlPescoco = null, centroCabeca = null;
+    let laco = null, ultimo = performance.now();
+
+    function medir() {
+      const r = cena.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      render.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+      render.setSize(r.width, r.height, false);
+      camera.aspect = r.width / r.height;
+      camera.updateProjectionMatrix();
+    }
+
+    const grau = THREE.MathUtils.degToRad;
+    const limitar = (v, m) => Math.max(-m, Math.min(m, v));
+    // Interpolação pelo tempo decorrido: o mesmo movimento a 30 ou 144 Hz.
+    const perseguir = (de, para, pressa, dt) => de + (para - de) * (1 - Math.exp(-pressa * dt));
+
+    function quadro(t) {
+      const dt = Math.min(0.05, (t - ultimo) / 1000);
+      ultimo = t;
+
+      if (ctrlCabeca && ctrlPescoco) {
+        agora.cabYaw = perseguir(agora.cabYaw, alvoMira.x, PRESSA.cabeca, dt);
+        agora.cabPit = perseguir(agora.cabPit, alvoMira.y, PRESSA.cabeca, dt);
+        agora.pesYaw = perseguir(agora.pesYaw, alvoMira.x, PRESSA.pescoco, dt);
+        agora.pesPit = perseguir(agora.pesPit, alvoMira.y, PRESSA.pescoco, dt);
+
+        // Offsets locais sobre a pose de repouso do arquivo (que é zero nos
+        // três controles - conferido ao ler o glTF).
+        ctrlPescoco.rotation.y = grau(LIMITES.pescoco.yaw) * agora.pesYaw;
+        ctrlPescoco.rotation.z = grau(LIMITES.pescoco.pitch) * agora.pesPit;
+        ctrlCabeca.rotation.y = grau(LIMITES.cabeca.yaw) * agora.cabYaw;
+        ctrlCabeca.rotation.z = grau(LIMITES.cabeca.pitch) * agora.cabPit;
+      }
+      render.render(mundo, camera);
+      laco = requestAnimationFrame(quadro);
+    }
+
+    const ligar = () => { if (!laco) { ultimo = performance.now(); laco = requestAnimationFrame(quadro); } };
+    const desligar = () => { if (laco) { cancelAnimationFrame(laco); laco = null; } };
+
+    // A gola vinha presa ao pescoço, e girava junto com ele: o anel branco se
+    // partia contra o peito e peças se soltavam. Ela pertence ao tronco.
+    //
+    // O que separa as duas coisas não é a altura - gola e pescoço ocupam a
+    // mesma faixa de Y - e sim a DISTÂNCIA DO EIXO: a coluna do pescoço é
+    // estreita, a gola se abre sobre o peito. O corte é por raio, com um
+    // piso de altura para a aba de baixo.
+    //
+    // Em repouso Mesh_Neck está em (0, 0.22, 0) dentro de CTRL_Neck, que está
+    // em (0, -0.22, 0) dentro de CTRL_Torso: as duas se anulam, então a gola
+    // entra no tronco em (0,0,0) e não sai do lugar.
+    const RAIO_GOLA = 0.075;
+    const PISO_GOLA = -0.40;
+
+    function separarGola(raiz) {
+      const malha = raiz.getObjectByName("Mesh_Neck");
+      const tronco = raiz.getObjectByName("CTRL_Torso");
+      if (!malha || !tronco || !malha.geometry?.index) return false;
+      const g = malha.geometry;
+      const pos = g.attributes.position, idx = g.index;
+      const ficam = [], vao = [];
+      for (let t = 0; t < idx.count; t += 3) {
+        const v = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
+        let x = 0, y = 0, z = 0;
+        for (const k of v) { x += pos.getX(k); y += pos.getY(k); z += pos.getZ(k); }
+        x /= 3; y /= 3; z /= 3;
+        (Math.hypot(x, z) > RAIO_GOLA || y < PISO_GOLA ? vao : ficam).push(...v);
+      }
+      if (!vao.length || !ficam.length) return false;
+      // Os dois pedaços dividem os mesmos atributos: só o índice muda. UV,
+      // normais e material seguem idênticos aos do arquivo.
+      const fazer = (lista) => {
+        const ng = new THREE.BufferGeometry();
+        for (const nome of Object.keys(g.attributes)) ng.setAttribute(nome, g.attributes[nome]);
+        ng.setIndex(lista);
+        ng.computeBoundingSphere();
+        return ng;
+      };
+      const gola = new THREE.Mesh(fazer(vao), malha.material);
+      gola.name = "Mesh_Gola";
+      gola.position.set(0, 0, 0);
+      malha.geometry = fazer(ficam);
+      tronco.add(gola);
+      return true;
+    }
+
+    new GLTFLoader().load("/modelo/robot_login_prepared.glb", (gltf) => {
+      const raiz = gltf.scene;
+      ctrlCabeca = raiz.getObjectByName("CTRL_Head");
+      ctrlPescoco = raiz.getObjectByName("CTRL_Neck");
+      if (!ctrlCabeca || !ctrlPescoco) desistir("não achei CTRL_Head/CTRL_Neck");
+      window.__golaSeparada = separarGola(raiz);
+      mundo.add(raiz);
+
+      // Enquadramento: cabeça inteira, pescoço, ombros e um pedaço do peito.
+      // O alvo é um pouco abaixo do centro da cabeça para sobrar peito em
+      // baixo sem cortar o alto do crânio.
+      const caixaTudo = new THREE.Box3().setFromObject(raiz);
+      const cabeca = raiz.getObjectByName("Mesh_Head");
+      const caixaCabeca = new THREE.Box3().setFromObject(cabeca || raiz);
+      const centro = caixaCabeca.getCenter(new THREE.Vector3());
+      const alturaCabeca = caixaCabeca.getSize(new THREE.Vector3()).y;
+      centroCabeca = centro.clone();
+
+      // O rosto aponta para +X: a câmera vai para lá.
+      const distancia = alturaCabeca * 4.35;
+      camera.position.set(centro.x + distancia, centro.y + alturaCabeca * 0.12, centro.z + distancia * 0.2);
+      const mira = centro.clone();
+      mira.y -= alturaCabeca * 0.42;
+      camera.lookAt(mira);
+
+      medir();
+      if (quieto.matches) render.render(mundo, camera);
+      else ligar();
+      window.__roboPronto = true;
+    }, undefined, (e) => desistir("falha ao carregar o modelo: " + e));
+
+    // ---- mira pelo cursor ----
+    // A direção é medida em relação ao centro da cabeça PROJETADO na tela, e
+    // normalizada por lado: cada borda da janela vale 1 nos dois sentidos,
+    // senão o lado em que sobra menos janela teria menos alcance.
+    function projetarCabeca() {
+      if (!centroCabeca) return null;
+      const r = cena.getBoundingClientRect();
+      const p = centroCabeca.clone().project(camera);
+      return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
+    }
+
+    function mirar(cx, cy) {
+      const alvo = projetarCabeca();
+      if (!alvo) return;
+      const dx = cx - alvo.x;
+      const dy = cy - alvo.y;
+      const folgaX = dx >= 0 ? Math.max(1, innerWidth - alvo.x) : Math.max(1, alvo.x);
+      const folgaY = dy >= 0 ? Math.max(1, innerHeight - alvo.y) : Math.max(1, alvo.y);
+      // Yaw: com o rosto em +X e a câmera à frente dele, o cursor indo para a
+      // direita da tela pede rotação NEGATIVA em Y. Pitch: cursor descendo
+      // pede rotação negativa em Z (o positivo olha para cima).
+      alvoMira.x = -limitar(dx / folgaX, 1);
+      alvoMira.y = -limitar(dy / folgaY, 1);
+    }
+
+    if (!quieto.matches && window.matchMedia("(pointer: fine)").matches) {
+      window.addEventListener("pointermove", (e) => mirar(e.clientX, e.clientY), { passive: true });
+      const neutro = () => { alvoMira.set(0, 0); };
+      window.addEventListener("pointerleave", neutro);
+      document.addEventListener("mouseleave", neutro);
+      window.addEventListener("blur", neutro);
+    }
+
+    window.addEventListener("resize", medir);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) desligar();
+      else if (!quieto.matches) ligar();
+    });
+    medir();
+
+    // Para a validação: expõe o que a tela está realmente aplicando.
+    window.__robo = {
+      angulos: () => ({
+        pescocoYaw: ctrlPescoco ? THREE.MathUtils.radToDeg(ctrlPescoco.rotation.y) : null,
+        pescocoPitch: ctrlPescoco ? THREE.MathUtils.radToDeg(ctrlPescoco.rotation.z) : null,
+        cabecaYaw: ctrlCabeca ? THREE.MathUtils.radToDeg(ctrlCabeca.rotation.y) : null,
+        cabecaPitch: ctrlCabeca ? THREE.MathUtils.radToDeg(ctrlCabeca.rotation.z) : null,
+      }),
+      mira: () => ({ x: alvoMira.x, y: alvoMira.y }),
+      limites: LIMITES,
+      // Onde a ponta do nariz cai na tela. Serve para medir, em pixels, o
+      // quanto o movimento realmente desloca o rosto - a amplitude e pequena
+      // de proposito, e e honesto poder mostrar o tamanho dela.
+      rosto: () => {
+        if (!ctrlCabeca) return null;
+        const ponto = new THREE.Vector3(0.22, 0, 0);
+        ctrlCabeca.localToWorld(ponto);
+        const r = cena.getBoundingClientRect();
+        const t = ponto.project(camera);
+        return { x: r.left + ((t.x + 1) / 2) * r.width, y: r.top + ((1 - t.y) / 2) * r.height };
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

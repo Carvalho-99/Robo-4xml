@@ -1,0 +1,193 @@
+<!doctype html>
+<!--
+  Folha de contato: renderiza várias cópias do modelo lado a lado, cada uma
+  com um ângulo diferente, para eu comparar numa imagem só onde a junção da
+  cabeça com o pescoço começa a abrir fresta.
+
+  Não faz parte do painel; serve para esta conferência e pode ser apagada.
+
+  Uso: /calibrar.html?eixo=y&angulos=0,5,10,15,20&alvo=cabeca&corte=pescoco
+       alvo:  cabeca | pescoco | ambos  (ambos = cabeça leva o dobro)
+       corte: tudo | pescoco  (pescoco aproxima na junção)
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Calibração do robô</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #eeeef0; }
+  canvas { display: block; }
+  #rotulo { position: fixed; left: 10px; top: 8px; font: 12px Consolas, monospace; color: #111; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "/vendor/three.module.js", "three/addons/": "/vendor/addons/" } }
+</script>
+</head>
+<body>
+<div id="rotulo">carregando…</div>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { clone } from "three/addons/utils/SkeletonUtils.js";
+
+const q = new URLSearchParams(location.search);
+const eixo = q.get("eixo") || "y";
+const angulos = (q.get("angulos") || "0,5,10,15,20").split(",").map(Number);
+const alvo = q.get("alvo") || "cabeca";
+const corte = q.get("corte") || "pescoco";
+
+const mundo = new THREE.Scene();
+mundo.background = new THREE.Color(0xeeeef0);
+const render = new THREE.WebGLRenderer({ antialias: true });
+render.setSize(innerWidth, innerHeight);
+render.setPixelRatio(Math.min(devicePixelRatio, 2));
+render.outputColorSpace = THREE.SRGBColorSpace;
+render.toneMapping = THREE.ACESFilmicToneMapping;
+render.toneMappingExposure = 0.92;
+document.body.appendChild(render.domElement);
+
+mundo.add(new THREE.HemisphereLight(0xffffff, 0xc8c8d0, 1.35));
+const p1 = new THREE.DirectionalLight(0xffffff, 2.1); p1.position.set(2.4, 1.8, 1.3); mundo.add(p1);
+const p2 = new THREE.DirectionalLight(0xffffff, 0.55); p2.position.set(1.2, 0.2, -2.2); mundo.add(p2);
+const p3 = new THREE.DirectionalLight(0xffffff, 1.1); p3.position.set(-1.6, 1.4, -0.8); mundo.add(p3);
+
+new GLTFLoader().load("/modelo/robot_login_prepared.glb", (gltf) => {
+  const base = gltf.scene;
+  const caixaCabeca = new THREE.Box3().setFromObject(base.getObjectByName("Mesh_Head"));
+  const centro = caixaCabeca.getCenter(new THREE.Vector3());
+  const altura = caixaCabeca.getSize(new THREE.Vector3()).y;
+  // Espaço entre as cópias: largura dos ombros com folga.
+  const passo = new THREE.Box3().setFromObject(base).getSize(new THREE.Vector3()).z * 1.15;
+
+  // cortes=a,b,c pinta a malha do pescoco de duas cores conforme cada
+  // triangulo esteja acima ou abaixo de um Y local. Serve para escolher onde
+  // separar a gola do pescoco antes de mexer no codigo da tela.
+  const cortes = (q.get("cortes") || "").split(",").filter(Boolean).map(Number);
+
+  // Separa a gola da malha do pescoco e prende no tronco. A gola e a parte
+  // de baixo de Geo_Neck: ela se apoia no peito, mas estava presa ao pescoco,
+  // e girava junto com ele.
+  //
+  // A posicao nova e (0,0,0) no tronco porque, em repouso, Mesh_Neck esta em
+  // (0,0.22,0) dentro de CTRL_Neck, que por sua vez esta em (0,-0.22,0)
+  // dentro de CTRL_Torso: as duas se anulam.
+  // A gola nao se distingue do pescoco pela altura: as duas coisas ocupam a
+  // mesma faixa de Y. O que as separa e a DISTANCIA DO EIXO - a coluna do
+  // pescoco e estreita, a gola se abre sobre o peito. Entao o criterio e o
+  // raio, com a altura como rede de seguranca para a aba de baixo.
+  function vaiParaTronco(x, y, z, limRaio, limY) {
+    return Math.hypot(x, z) > limRaio || y < limY;
+  }
+
+  function separarGola(copia, limiteY) {
+    const malha = copia.getObjectByName("Mesh_Neck");
+    const tronco = copia.getObjectByName("CTRL_Torso");
+    const g = malha.geometry;
+    const pos = g.attributes.position, idx = g.index;
+    const limRaio = Number(q.get("raio") || 0.13);
+    const ficam = [], vao = [];
+    for (let t = 0; t < idx.count; t += 3) {
+      const a = idx.getX(t), b = idx.getX(t + 1), c = idx.getX(t + 2);
+      const x = (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3;
+      const y = (pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3;
+      const z = (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3;
+      (vaiParaTronco(x, y, z, limRaio, limiteY) ? vao : ficam).push(a, b, c);
+    }
+    if (!vao.length || !ficam.length) return;
+    // Os dois pedacos compartilham os mesmos atributos: so o indice muda.
+    // Assim UV, normais e material continuam exatamente os mesmos.
+    const fazer = (lista) => {
+      const ng = new THREE.BufferGeometry();
+      for (const nome of Object.keys(g.attributes)) ng.setAttribute(nome, g.attributes[nome]);
+      ng.setIndex(lista);
+      ng.computeBoundingSphere();
+      return ng;
+    };
+    const gola = new THREE.Mesh(fazer(vao), malha.material);
+    gola.name = "Mesh_Gola";
+    gola.position.set(0, 0, 0);
+    malha.geometry = fazer(ficam);
+    tronco.add(gola);
+  }
+
+  function pintarCorte(copia, limiteY) {
+    const malha = copia.getObjectByName("Mesh_Neck");
+    const g = malha.geometry;
+    const pos = g.attributes.position;
+    const cor = new Float32Array(pos.count * 3);
+    const idx = g.index;
+    // Cor por vertice: decide pelo centroide do triangulo a que ele pertence.
+    for (let t = 0; t < idx.count; t += 3) {
+      const v = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)];
+      const xm = (pos.getX(v[0]) + pos.getX(v[1]) + pos.getX(v[2])) / 3;
+      const ym = (pos.getY(v[0]) + pos.getY(v[1]) + pos.getY(v[2])) / 3;
+      const zm = (pos.getZ(v[0]) + pos.getZ(v[1]) + pos.getZ(v[2])) / 3;
+      const acima = !vaiParaTronco(xm, ym, zm, limiteY, -0.40);
+      for (const k of v) {
+        cor[k * 3] = acima ? 0.25 : 0.95;
+        cor[k * 3 + 1] = acima ? 0.70 : 0.20;
+        cor[k * 3 + 2] = acima ? 0.35 : 0.70;
+      }
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(cor, 3));
+    malha.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 });
+  }
+
+  (cortes.length ? cortes : angulos).forEach((valor, i) => {
+    const graus = cortes.length ? 0 : valor;
+    const copia = clone(base);
+    if (cortes.length) pintarCorte(copia, valor);
+    const separar = q.get("separar");
+    if (separar !== null) separarGola(copia, Number(separar));
+    // Com a camera em +X olhando para -X, o eixo Z cresce para a ESQUERDA da
+    // tela. Sem o sinal negativo, a fileira sai ao contrario do rotulo.
+    const desloca = (i - ((cortes.length || angulos.length) - 1) / 2) * passo;
+    copia.position.z = -desloca;
+    // cores=1 pinta cada malha de um tom diferente, para enxergar QUAL peca
+    // esta em qual grupo. E assim que se descobre gola ou peito agrupados
+    // por engano com o pescoco.
+    if (q.get("cores") === "1") {
+      const tons = { Mesh_Head: 0xd94848, Mesh_Neck: 0x3fae5a, Mesh_Torso: 0x3b6fd4 };
+      copia.traverse((o) => {
+        if (o.isMesh && tons[o.name] !== undefined) {
+          o.material = new THREE.MeshStandardMaterial({ color: tons[o.name], roughness: 0.75, metalness: 0 });
+        }
+      });
+    }
+    const cabeca = copia.getObjectByName("CTRL_Head");
+    const pescoco = copia.getObjectByName("CTRL_Neck");
+    const rad = THREE.MathUtils.degToRad(graus);
+    if (alvo === "cabeca") cabeca.rotation[eixo] = rad;
+    else if (alvo === "pescoco") pescoco.rotation[eixo] = rad;
+    else { cabeca.rotation[eixo] = rad * (2 / 3); pescoco.rotation[eixo] = rad * (1 / 3); }
+    mundo.add(copia);
+  });
+
+  // Câmera de frente (o rosto aponta para +X), enquadrando a fileira.
+  const largura = passo * (cortes.length || angulos.length);
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 100);
+  const mira = corte === "pescoco"
+    ? new THREE.Vector3(centro.x, centro.y - altura * 0.62, 0)
+    : new THREE.Vector3(centro.x, centro.y - altura * 0.35, 0);
+  // Ortografica: sem ela, as copias das pontas sao vistas de angulo e a
+  // perspectiva se mistura com a rotacao que eu quero comparar.
+  const meiaLargura = (largura * Number(q.get("zoom") || 0.5));
+  const meiaAltura = meiaLargura * (innerHeight / innerWidth);
+  camera.left = -meiaLargura; camera.right = meiaLargura;
+  camera.top = meiaAltura; camera.bottom = -meiaAltura;
+  camera.position.set(mira.x + 10, mira.y, 0);
+  camera.lookAt(mira);
+  camera.updateProjectionMatrix();
+  render.render(mundo, camera);
+
+  document.getElementById("rotulo").textContent = cortes.length
+    ? `raio de corte = ${cortes.join(" / ")}  (verde = fica no pescoco, rosa = vai para o tronco)`
+    : `${alvo}.rotation.${eixo} = ${angulos.join("° / ")}°  (da esquerda para a direita)`;
+  window.__pronto = true;
+}, undefined, (e) => {
+  document.getElementById("rotulo").textContent = "falhou: " + e;
+  window.__pronto = "erro";
+});
+</script>
+</body>
+</html>

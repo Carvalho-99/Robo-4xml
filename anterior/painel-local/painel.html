@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robô do 4XML</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --papel: #ffffff; --fundo: #f4f4f5; --tinta: #000000; --grafite: #18181b;
+    --console: #121214; --consoleLinha: #2a2a2e; --consoleTexto: #e4e4e7; --consoleFraco: #71717a;
+    --linha: #e4e4e7; --meio: #71717a; --claro: #a1a1aa;
+    --ui: "Archivo", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    --raio: 14px;
+    --sombra: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px -14px rgba(0,0,0,.18);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: var(--ui); color: var(--tinta); background: var(--fundo);
+    background-image: linear-gradient(var(--linha) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--linha) 1px, transparent 1px);
+    background-size: 56px 56px;
+    font-size: 15px; line-height: 1.5;
+  }
+  /* ---------- barra ---------- */
+  .barra {
+    position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.86);
+    backdrop-filter: blur(10px); border-bottom: 1px solid var(--linha);
+  }
+  .barra .dentro {
+    max-width: 1180px; margin: 0 auto; padding: 13px 22px;
+    display: flex; align-items: center; gap: 13px;
+  }
+  .barra svg.logo { width: 32px; height: 32px; flex: none; }
+  .barra b { font-size: 15.5px; letter-spacing: -.01em; display: block; }
+  .barra .sub { font-size: 12.5px; color: var(--meio); }
+  .espaco { flex: 1; }
+  .estado {
+    display: inline-flex; align-items: center; gap: 7px; font: 500 12.5px var(--ui);
+    padding: 5px 12px 5px 10px; border: 1px solid var(--linha); border-radius: 999px; background: var(--papel);
+  }
+  .ponto { width: 7px; height: 7px; border-radius: 50%; background: var(--claro); flex: none; }
+  .estado[data-rodando] { border-color: var(--tinta); }
+  .estado[data-rodando] .ponto { background: var(--tinta); animation: pulsa 1.6s ease-in-out infinite; }
+  @keyframes pulsa { 50% { opacity: .25; transform: scale(.8); } }
+  .sair {
+    font: 500 13px var(--ui); color: var(--meio); background: none; border: none;
+    cursor: pointer; padding: 6px 8px; border-radius: 8px; transition: color .18s, background .18s;
+  }
+  .sair:hover { color: var(--tinta); background: var(--fundo); }
+
+  /* ---------- estrutura ---------- */
+  main { max-width: 1180px; margin: 0 auto; padding: 26px 22px 70px; }
+  .colunas { display: grid; gap: 20px; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); align-items: start; }
+  @media (max-width: 920px) { .colunas { grid-template-columns: 1fr; } }
+  .pilha { display: grid; gap: 20px; }
+
+  .cartao {
+    background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio);
+    padding: 22px; box-shadow: var(--sombra);
+    animation: entra .5s cubic-bezier(.2,.7,.3,1) both;
+  }
+  .pilha .cartao:nth-child(2) { animation-delay: .08s; }
+  @keyframes entra { from { opacity: 0; transform: translateY(10px); } }
+  .cartao > h2 { margin: 0 0 3px; font-size: 16.5px; font-weight: 600; letter-spacing: -.01em; }
+  .cartao > p.sub { margin: 0 0 18px; font-size: 13.5px; color: var(--meio); }
+
+  /* ---------- números do topo ---------- */
+  .resumo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin: 0 0 20px;
+            background: var(--papel); border: 1px solid var(--linha); border-radius: var(--raio);
+            overflow: hidden; box-shadow: var(--sombra); animation: entra .5s cubic-bezier(.2,.7,.3,1) both; }
+  .resumo div { padding: 15px 18px; }
+  .resumo div + div { border-left: 1px solid var(--linha); }
+  .resumo dt { font-size: 11.5px; color: var(--meio); margin-bottom: 5px; }
+  .resumo dd { margin: 0; font: 500 18px/1.2 var(--mono); letter-spacing: -.02em; }
+  .resumo dd.vazio { font-family: var(--ui); font-size: 14px; font-weight: 400; color: var(--claro); }
+  @media (max-width: 620px) {
+    .resumo { grid-template-columns: 1fr; }
+    .resumo div + div { border-left: none; border-top: 1px solid var(--linha); }
+  }
+
+  /* ---------- ações ---------- */
+  .acao {
+    display: flex; gap: 14px; align-items: flex-start; width: 100%; text-align: left;
+    font: inherit; padding: 16px; border-radius: 12px; cursor: pointer;
+    border: 1px solid var(--linha); background: var(--papel); color: var(--tinta);
+    transition: transform .15s, border-color .2s, box-shadow .2s, background .2s;
+  }
+  .acao + .acao { margin-top: 10px; }
+  /* display de classe vence o [hidden] do navegador: diz de novo */
+  .acao[hidden] { display: none; }
+  .acao:hover:not(:disabled) { border-color: var(--claro); box-shadow: 0 8px 22px -14px rgba(0,0,0,.4); }
+  .acao:active:not(:disabled) { transform: scale(.99); }
+  .acao:focus-visible { outline: 2px solid var(--tinta); outline-offset: 2px; }
+  .acao:disabled { opacity: .45; cursor: default; }
+  .acao.principal { background: var(--tinta); border-color: var(--tinta); color: #fff; }
+  .acao.principal:hover:not(:disabled) { background: var(--grafite); box-shadow: 0 10px 28px -14px rgba(0,0,0,.65); }
+  .acao .icone { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+  .acao .corpo { flex: 1; min-width: 0; }
+  .acao .titulo { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 9px; }
+  .acao .texto { font-size: 13px; margin-top: 3px; opacity: .72; display: block; }
+  .acao .tempo { font: 400 11.5px var(--mono); padding: 3px 8px; border-radius: 999px;
+                 border: 1px solid currentColor; opacity: .5; flex: none; }
+  .girando { animation: gira 1s linear infinite; transform-origin: 50% 50%; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+
+  /* ---------- trilho de etapas ---------- */
+  .trilho { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--linha); }
+  .trilho .cabeca { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 11px; }
+  .trilho .cabeca span { font-size: 12.5px; color: var(--meio); }
+  .trilho .cabeca .atual { font-weight: 600; color: var(--tinta); font-size: 13px; }
+  .etapas { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 5px; }
+  .etapa .barrinha { height: 3px; border-radius: 2px; background: var(--linha); overflow: hidden; }
+  .etapa .barrinha i { display: block; height: 100%; width: 0; background: var(--tinta); transition: width .5s ease; }
+  .etapa[data-feito] .barrinha i { width: 100%; }
+  .etapa[data-agora] .barrinha i { width: 100%; animation: respira 1.5s ease-in-out infinite; }
+  @keyframes respira { 50% { opacity: .3; } }
+  .etapa label { display: block; margin-top: 7px; font-size: 11px; color: var(--claro); }
+  .etapa[data-feito] label, .etapa[data-agora] label { color: var(--tinta); }
+  @media (max-width: 560px) { .etapa label { font-size: 9.5px; } }
+
+  /* ---------- console ---------- */
+  .console { background: var(--console); border: 1px solid var(--console); border-radius: var(--raio);
+             overflow: hidden; box-shadow: var(--sombra); animation: entra .5s .08s cubic-bezier(.2,.7,.3,1) both; }
+  .console header {
+    display: flex; align-items: center; gap: 10px; padding: 11px 15px;
+    border-bottom: 1px solid var(--consoleLinha); color: var(--consoleTexto);
+  }
+  .console header b { font: 500 13px var(--ui); letter-spacing: .01em; }
+  .console header .contagem { font: 400 11.5px var(--mono); color: var(--consoleFraco); margin-left: auto; }
+  .console header button {
+    font: 500 11.5px var(--ui); color: var(--consoleFraco); background: none;
+    border: 1px solid var(--consoleLinha); border-radius: 7px; padding: 4px 10px; cursor: pointer;
+    transition: color .18s, border-color .18s;
+  }
+  .console header button:hover { color: var(--consoleTexto); border-color: var(--consoleFraco); }
+  .fita { margin: 0; padding: 14px 16px; height: 330px; overflow-y: auto;
+          font: 400 12.5px/1.75 var(--mono); color: var(--consoleTexto); }
+  .fita .l { display: grid; grid-template-columns: 62px 1fr; gap: 12px; animation: chega .3s ease both; }
+  @keyframes chega { from { opacity: 0; transform: translateY(3px); } }
+  .fita .h { color: var(--consoleFraco); }
+  .fita .t { white-space: pre-wrap; word-break: break-word; }
+  .fita .t.forte { color: #fff; font-weight: 500; }
+  .fita .vazio { color: var(--consoleFraco); }
+  .fita::-webkit-scrollbar { width: 9px; }
+  .fita::-webkit-scrollbar-thumb { background: var(--consoleLinha); border-radius: 9px; }
+
+  /* ---------- agendamento ---------- */
+  .chave { display: flex; align-items: center; justify-content: space-between; gap: 14px;
+           padding: 13px 15px; border: 1px solid var(--linha); border-radius: 11px; cursor: pointer; }
+  .chave span.rotulo { font-weight: 500; font-size: 14px; }
+  .interruptor { position: relative; width: 44px; height: 25px; flex: none; display: block; }
+  .interruptor input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .interruptor i { position: absolute; inset: 0; border-radius: 999px; background: var(--linha);
+                   transition: background .22s; pointer-events: none; }
+  .interruptor i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 19px; height: 19px;
+                          border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3);
+                          transition: transform .22s cubic-bezier(.2,.9,.3,1.2); }
+  .interruptor input:checked + i { background: var(--tinta); }
+  .interruptor input:checked + i::after { transform: translateX(19px); }
+  .interruptor input:focus-visible + i { box-shadow: 0 0 0 3px rgba(0,0,0,.15); }
+
+  .conteudo { display: grid; gap: 18px; margin-top: 18px; }
+  .conteudo[data-oculto] { display: none; }
+  .campo > span.rotulo { display: flex; justify-content: space-between; align-items: baseline;
+                         font-size: 13px; font-weight: 500; margin-bottom: 9px; }
+  .campo > span.rotulo em { font-style: normal; font-size: 11.5px; color: var(--claro); font-weight: 400; }
+
+  .fichas { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+  .ficha { display: inline-flex; align-items: center; gap: 2px; padding: 5px 5px 5px 11px;
+           border: 1px solid var(--linha); border-radius: 9px; font: 500 13.5px var(--mono); }
+  .ficha button { background: none; border: none; cursor: pointer; color: var(--claro);
+                  padding: 3px 4px; line-height: 1; border-radius: 5px; transition: color .18s, background .18s; }
+  .ficha button:hover { color: var(--tinta); background: var(--fundo); }
+  .ficha button svg { width: 12px; height: 12px; display: block; }
+  .nenhum { font-size: 13px; color: var(--claro); }
+
+  .juntos { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  input[type=time], input[type=number] {
+    font: 500 14px var(--mono); padding: 9px 11px; border: 1px solid var(--linha);
+    border-radius: 9px; background: var(--papel); color: var(--tinta); transition: border-color .18s, box-shadow .18s;
+  }
+  input[type=time]:focus-visible, input[type=number]:focus-visible {
+    outline: none; border-color: var(--tinta); box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+  }
+  input:disabled { opacity: .45; }
+  .botao {
+    font: 500 13.5px var(--ui); padding: 9px 14px; border: 1px solid var(--linha);
+    border-radius: 9px; background: var(--papel); color: var(--tinta); cursor: pointer;
+    transition: border-color .18s, background .18s, transform .14s;
+  }
+  .botao:hover:not(:disabled) { border-color: var(--claro); background: var(--fundo); }
+  .botao:active:not(:disabled) { transform: scale(.98); }
+  .botao:disabled { opacity: .45; cursor: default; }
+
+  .escolhas { display: grid; gap: 7px; }
+  .escolha { display: flex; align-items: center; gap: 10px; padding: 11px 13px; cursor: pointer;
+             border: 1px solid var(--linha); border-radius: 10px; font-size: 13.5px;
+             transition: border-color .18s, background .18s; }
+  .escolha:hover { border-color: var(--claro); }
+  .escolha:has(input:checked) { border-color: var(--tinta); background: var(--fundo); font-weight: 500; }
+  .escolha input { accent-color: #000; width: 15px; height: 15px; margin: 0; flex: none; }
+
+  .mes { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 10px; }
+  .mes strong { font-size: 14px; font-weight: 600; }
+  .mes button { padding: 3px 11px; font-size: 15px; line-height: 1.4; }
+  .semana, .grade-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .semana span { text-align: center; font: 400 10.5px var(--ui); color: var(--claro); padding-bottom: 5px; }
+  .grade-cal button {
+    background: var(--papel); color: var(--tinta); border: 1px solid var(--linha); border-radius: 8px;
+    padding: 8px 0; font: 500 12.5px var(--mono); cursor: pointer;
+    transition: background .16s, border-color .16s, color .16s, transform .12s;
+  }
+  .grade-cal button:hover:not(:disabled) { border-color: var(--tinta); }
+  .grade-cal button:active:not(:disabled) { transform: scale(.94); }
+  .grade-cal button.marcado { background: var(--tinta); color: #fff; border-color: var(--tinta); }
+  .grade-cal button:disabled { opacity: .25; border-color: transparent; background: none; cursor: default; }
+  .grade-cal span { padding: 8px 0; }
+  #blocoCalendario { margin-top: 12px; }
+  #blocoCalendario[hidden] { display: none; }
+
+  .salvar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--linha); }
+  .salvar .principal {
+    font: 600 14px var(--ui); padding: 11px 18px; border: 1px solid var(--tinta);
+    border-radius: 10px; background: var(--tinta); color: #fff; cursor: pointer;
+    transition: background .18s, transform .14s, box-shadow .18s;
+  }
+  .salvar .principal:hover:not(:disabled) { background: var(--grafite); box-shadow: 0 8px 22px -12px rgba(0,0,0,.6); }
+  .salvar .principal:active:not(:disabled) { transform: scale(.98); }
+  .salvar .principal:disabled { opacity: .4; cursor: default; }
+  .recado { font-size: 13px; color: var(--meio); display: inline-flex; align-items: center; gap: 7px;
+            animation: chega .3s ease both; }
+  .recado svg { width: 15px; height: 15px; flex: none; }
+  .pendente { font-size: 12.5px; color: var(--meio); display: inline-flex; align-items: center; gap: 7px; }
+  .pendente::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--tinta); }
+
+  .nota { margin: 0; font-size: 13px; color: var(--meio); line-height: 1.55; }
+  .nota + .nota { margin-top: 9px; }
+  .nota b { color: var(--tinta); font-weight: 600; }
+  .pe { margin-top: 22px; font: 400 11.5px var(--mono); color: var(--claro); text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="barra">
+  <div class="dentro">
+    <svg class="logo" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <rect x="1" y="1" width="30" height="30" rx="8" fill="#000"/>
+      <rect x="8.5" y="11" width="15" height="11" rx="2.5" stroke="#fff" stroke-width="1.6"/>
+      <path d="M16 7.5V11" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="16" cy="6.4" r="1.5" fill="#fff"/>
+      <circle cx="12.6" cy="16.5" r="1.5" fill="#fff"/>
+      <circle cx="19.4" cy="16.5" r="1.5" fill="#fff"/>
+    </svg>
+    <div>
+      <b>Robô do 4XML</b>
+      <div class="sub">Central de automação de notas fiscais</div>
+    </div>
+    <div class="espaco"></div>
+    <span class="estado" id="estado"><i class="ponto"></i><span id="estadoTexto">parado</span></span>
+    <button class="sair" id="sair">Sair</button>
+  </div>
+</div>
+
+<main>
+  <dl class="resumo">
+    <div><dt>Última busca</dt><dd id="rUltima" class="vazio">—</dd></div>
+    <div><dt>Próxima</dt><dd id="rProxima" class="vazio">—</dd></div>
+    <div><dt>Notas na última</dt><dd id="rNotas" class="vazio">—</dd></div>
+  </dl>
+
+  <div class="colunas">
+    <div class="pilha">
+      <section class="cartao">
+        <h2>Buscar as notas agora</h2>
+        <p class="sub">Dispara o robô na hora, sem esperar o horário.</p>
+
+        <button class="acao principal" id="rodar">
+          <svg class="icone" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M11 2.5 4 11h4.2l-1 6.5L16 9h-4.2l-.8-6.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+          <span class="corpo">
+            <span class="titulo">Buscar notas agora <span class="tempo">~20 min</span></span>
+            <span class="texto">Busca na SEFAZ, lê a grade do Protheus e envia ao portal.</span>
+          </span>
+        </button>
+
+        <button class="acao" id="colher">
+          <svg class="icone" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M16.8 2.8v3.4h-3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="corpo">
+            <span class="titulo">Só atualizar o portal <span class="tempo">~5 min</span></span>
+            <span class="texto">Pula a SEFAZ e envia o que o Protheus já tem.</span>
+          </span>
+        </button>
+
+        <button class="acao" id="parar" hidden>
+          <svg class="icone" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          <span class="corpo">
+            <span class="titulo">Interromper</span>
+            <span class="texto">Encerra o robô. Nada fica pela metade: a próxima execução refaz o que faltou.</span>
+          </span>
+        </button>
+
+        <div class="trilho">
+          <div class="cabeca">
+            <span class="atual" id="etapaAtual">Aguardando</span>
+            <span id="etapaDica">O robô não está rodando.</span>
+          </div>
+          <div class="etapas" id="etapas"></div>
+        </div>
+      </section>
+
+      <section class="console">
+        <header>
+          <b>Execução em tempo real</b>
+          <span class="contagem" id="contagem">0 linhas</span>
+          <button id="limpar">Limpar</button>
+        </header>
+        <div class="fita" id="fita" tabindex="0" role="log" aria-live="polite" aria-label="Relato da execução"><div class="vazio">Carregando o relato de hoje…</div></div>
+      </section>
+    </div>
+
+    <div class="pilha">
+      <section class="cartao">
+        <h2>Buscar sozinho</h2>
+        <p class="sub">Quando ligado, o robô faz isso nos horários abaixo, sem precisar de ninguém.</p>
+
+        <label class="chave">
+          <span class="rotulo">Deixar o robô buscar sozinho</span>
+          <span class="interruptor">
+            <input type="checkbox" id="ligado">
+            <i></i>
+          </span>
+        </label>
+
+        <div class="conteudo" id="conteudo">
+          <div class="campo">
+            <span class="rotulo">Horários <em>no máximo 2 por dia</em></span>
+            <div class="fichas" id="horarios"></div>
+            <div class="juntos">
+              <input type="time" id="novoHorario" value="08:00" aria-label="Novo horário">
+              <button class="botao" id="addHorario">Acrescentar</button>
+              <span class="nenhum" id="limite"></span>
+            </div>
+          </div>
+
+          <div class="campo">
+            <span class="rotulo">Em quais dias</span>
+            <div class="escolhas">
+              <label class="escolha"><input type="radio" name="rep" value="todo-dia"> Todo dia</label>
+              <label class="escolha"><input type="radio" name="rep" value="dias-uteis"> Só de segunda a sexta</label>
+              <label class="escolha"><input type="radio" name="rep" value="datas"> Só nos dias que eu escolher</label>
+            </div>
+            <div id="blocoCalendario" hidden>
+              <div class="mes">
+                <button type="button" class="botao" id="mesAnterior" aria-label="Mês anterior">&lsaquo;</button>
+                <strong id="mesNome"></strong>
+                <button type="button" class="botao" id="mesProximo" aria-label="Próximo mês">&rsaquo;</button>
+              </div>
+              <div class="semana"><span>dom</span><span>seg</span><span>ter</span><span>qua</span><span>qui</span><span>sex</span><span>sáb</span></div>
+              <div class="grade-cal" id="calendario"></div>
+              <p class="nenhum" id="resumoDatas" style="margin:10px 0 0"></p>
+            </div>
+          </div>
+
+          <div class="campo">
+            <span class="rotulo">Até quando</span>
+            <div class="escolhas">
+              <label class="escolha"><input type="radio" name="dur" value="sempre"> Por tempo indeterminado</label>
+              <label class="escolha"><input type="radio" name="dur" value="dias">
+                Só pelos próximos <input type="number" id="dias" min="1" max="365" value="5" style="width:72px" aria-label="Quantos dias"> dia(s)</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="salvar">
+          <button class="principal" id="salvarBotao" disabled>Salvar</button>
+          <span id="salvo"></span>
+        </div>
+      </section>
+
+      <section class="cartao">
+        <h2>Como está</h2>
+        <p class="nota" id="situacaoTarefa">Carregando…</p>
+        <p class="nota" id="situacaoSessao"></p>
+      </section>
+    </div>
+  </div>
+
+  <p class="pe">127.0.0.1:8420 · só esta máquina</p>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+
+// As etapas saem do que o robô REALMENTE escreve. Nada de porcentagem
+// inventada: cada etapa acende quando a mensagem dela aparece no relato.
+const ETAPAS = [
+  { nome: "Entrando", marca: /abrindo o protheus|entrando como|sessao:|dentro do protheus/i },
+  { nome: "4XML",     marca: /gerenciador 4xml|abrindo a arvore|cartao do 4xml/i },
+  { nome: "SEFAZ",    marca: /sincroniz/i },
+  { nome: "Notas",    marca: /colhendo as notas|a tela diz|notas distintas|periodo:/i },
+  { nome: "Valores",  marca: /lendo o valor|li o valor/i },
+  { nome: "Portal",   marca: /portal:/i },
+];
+
+let agenda = null;
+let agendaSalva = "";
+let rodando = false;
+let total = 0;
+let grudado = true;
+
+const fmtData = (t) => {
+  if (!t || String(t).includes("1600") || /^0+$/.test(String(t).trim())) return null;
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return null;
+  const hora = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString()
+    ? "Hoje, " + hora
+    : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + ", " + hora;
+};
+
+function porNumero(seletor, valor) {
+  const alvo = $(seletor);
+  alvo.textContent = valor === null || valor === undefined ? "—" : valor;
+  alvo.classList.toggle("vazio", valor === null || valor === undefined);
+}
+
+// ---------- console ----------
+
+function linhaHtml(bruta) {
+  const casa = /^(\d{2}\/\d{2}\/\d{4}),?\s+(\d{2}:\d{2}:\d{2})\s+([\s\S]*)$/.exec(bruta);
+  const l = document.createElement("div");
+  l.className = "l";
+  const h = document.createElement("span");
+  h.className = "h";
+  h.textContent = casa ? casa[2] : "";
+  const t = document.createElement("span");
+  const texto = casa ? casa[3] : bruta;
+  t.className = "t" + (/===|portal:|ERRO|ATENCAO|emperrou/i.test(texto) ? " forte" : "");
+  t.textContent = texto;
+  l.append(h, t);
+  return l;
+}
+
+const textosDaFita = () => [...$("#fita").querySelectorAll(".t")].map((t) => t.textContent);
+
+function contar() {
+  $("#contagem").textContent = total + (total === 1 ? " linha" : " linhas");
+}
+
+function porLinhas(lista) {
+  const fita = $("#fita");
+  fita.textContent = "";
+  if (!lista.length) {
+    const v = document.createElement("div");
+    v.className = "vazio";
+    v.textContent = "Nada ainda hoje. Use um dos botões acima para começar.";
+    fita.append(v);
+  } else {
+    for (const l of lista) fita.append(linhaHtml(l));
+  }
+  total = lista.length;
+  contar();
+  fita.scrollTop = fita.scrollHeight;
+  grudado = true;
+  marcarEtapas(lista);
+}
+
+function acrescentar(bruta) {
+  const fita = $("#fita");
+  const vazio = fita.querySelector(".vazio");
+  if (vazio) vazio.remove();
+  fita.append(linhaHtml(bruta));
+  total += 1;
+  contar();
+  // Só desce sozinho se a pessoa já estava no fim; se subiu para ler, fica.
+  if (grudado) fita.scrollTop = fita.scrollHeight;
+}
+
+$("#fita").addEventListener("scroll", () => {
+  const f = $("#fita");
+  grudado = f.scrollHeight - f.scrollTop - f.clientHeight < 40;
+});
+
+// ---------- etapas ----------
+
+function desenharEtapas() {
+  $("#etapas").innerHTML = ETAPAS
+    .map((e) => '<div class="etapa"><div class="barrinha"><i></i></div><label>' + e.nome + "</label></div>")
+    .join("");
+}
+
+function marcarEtapas(lista) {
+  const texto = lista.join("\n");
+  const terminou = /ciclo terminado|ERRO:/i.test(texto);
+  let ultima = -1;
+  ETAPAS.forEach((e, i) => { if (e.marca.test(texto)) ultima = i; });
+  [...$("#etapas").children].forEach((c, i) => {
+    c.toggleAttribute("data-feito", i < ultima || (terminou && i <= ultima));
+    c.toggleAttribute("data-agora", rodando && i === ultima && !terminou);
+  });
+  if (rodando) {
+    $("#etapaAtual").textContent = ultima >= 0 ? ETAPAS[ultima].nome : "Começando";
+    $("#etapaDica").textContent = "Pode continuar trabalhando normalmente.";
+  } else {
+    $("#etapaAtual").textContent = terminou ? "Concluído" : "Aguardando";
+    $("#etapaDica").textContent = terminou ? "A última execução terminou." : "O robô não está rodando.";
+  }
+}
+
+// ---------- agendamento ----------
+
+const MAX_HORARIOS = 2;
+const iso = (d) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+let mesNaTela = new Date();
+const X = '<svg viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+
+function desenharHorarios() {
+  $("#horarios").innerHTML = agenda.horarios.length
+    ? agenda.horarios.map((h, i) =>
+        '<span class="ficha">' + h + '<button data-i="' + i + '" aria-label="Tirar ' + h + '">' + X + "</button></span>").join("")
+    : '<span class="nenhum">Nenhum horário. O robô não vai rodar sozinho.</span>';
+  for (const b of $("#horarios").querySelectorAll("button")) {
+    b.onclick = () => { agenda.horarios.splice(Number(b.dataset.i), 1); desenharHorarios(); conferirPendente(); };
+  }
+  const cheio = agenda.horarios.length >= MAX_HORARIOS;
+  $("#addHorario").disabled = cheio;
+  $("#novoHorario").disabled = cheio;
+  $("#limite").textContent = cheio ? "Tire um para pôr outro." : "";
+}
+
+function desenharCalendario() {
+  const ano = mesNaTela.getFullYear();
+  const mes = mesNaTela.getMonth();
+  const nomeMes = mesNaTela.toLocaleDateString("pt-BR", { month: "long" });
+  $("#mesNome").textContent = nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1) + " " + ano;
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const celulas = [];
+  for (let i = 0; i < new Date(ano, mes, 1).getDay(); i += 1) celulas.push("<span></span>");
+  const ultimo = new Date(ano, mes + 1, 0).getDate();
+  for (let dia = 1; dia <= ultimo; dia += 1) {
+    const d = new Date(ano, mes, dia);
+    const chave = iso(d);
+    celulas.push('<button type="button" data-dia="' + chave + '" class="' + (agenda.datas.includes(chave) ? "marcado" : "") + '"'
+      + (d < hoje ? " disabled" : "") + ">" + dia + "</button>");
+  }
+  $("#calendario").innerHTML = celulas.join("");
+  for (const b of $("#calendario").querySelectorAll("button[data-dia]")) {
+    b.onclick = () => {
+      const i = agenda.datas.indexOf(b.dataset.dia);
+      if (i >= 0) agenda.datas.splice(i, 1); else agenda.datas.push(b.dataset.dia);
+      agenda.datas.sort();
+      desenharCalendario();
+      conferirPendente();
+    };
+  }
+  $("#resumoDatas").textContent = agenda.datas.length
+    ? agenda.datas.length + " dia(s): " + agenda.datas.map((x) => x.split("-").reverse().slice(0, 2).join("/")).join(", ")
+    : "Clique nos dias em que o robô deve rodar.";
+}
+
+function aplicarAgenda() {
+  $("#ligado").checked = agenda.ligado;
+  $("#conteudo").toggleAttribute("data-oculto", !agenda.ligado);
+  for (const r of document.querySelectorAll("input[name=rep]")) r.checked = r.value === agenda.repeticao;
+  for (const r of document.querySelectorAll("input[name=dur]")) r.checked = r.value === agenda.duracao;
+  $("#dias").value = agenda.dias;
+  $("#blocoCalendario").hidden = agenda.repeticao !== "datas";
+  desenharHorarios();
+  desenharCalendario();
+  conferirPendente();
+}
+
+// Distingue o que está só escolhido na tela do que já foi para o Windows.
+function conferirPendente() {
+  agenda.dias = Number($("#dias").value) || 5;
+  const mudou = JSON.stringify(agenda) !== agendaSalva;
+  $("#salvarBotao").disabled = !mudou;
+  if (mudou) $("#salvo").innerHTML = '<span class="pendente">Alterações não salvas</span>';
+  else if ($("#salvo").querySelector(".pendente")) $("#salvo").textContent = "";
+}
+
+// ---------- estado ----------
+
+function emAndamento(sim) {
+  rodando = sim;
+  $("#rodar").disabled = sim;
+  $("#colher").disabled = sim;
+  $("#parar").hidden = !sim;
+  $("#estado").toggleAttribute("data-rodando", sim);
+  $("#estadoTexto").textContent = sim ? "rodando" : "parado";
+  $("#colher").querySelector(".icone").classList.toggle("girando", sim);
+}
+
+async function carregar() {
+  let d;
+  try {
+    const r = await fetch("/api/estado");
+    if (r.status === 401) { location.reload(); return; }
+    d = await r.json();
+  } catch { return; }
+
+  agenda = d.agenda;
+  agendaSalva = JSON.stringify(agenda);
+  aplicarAgenda();
+  emAndamento(d.rodando);
+  porLinhas(d.rodando && d.linhas.length ? d.linhas : d.diario);
+
+  porNumero("#rNotas", d.ultimo ? d.ultimo.notas + " notas" : null);
+  $("#situacaoSessao").innerHTML = "Você entrou como <b>" + (d.usuario.nome || d.usuario.email)
+    + "</b>. O robô usa a sessão do Protheus na filial <b>" + (d.filial || "—")
+    + "</b>, e está na versão <b>" + (d.versao || "?") + "</b>.";
+  pintarTarefa();
+}
+
+// O agendador do Windows responde devagar, então vem por fora e preenche
+// estes campos quando chegar.
+async function pintarTarefa() {
+  let t = null;
+  try { t = (await (await fetch("/api/tarefa")).json()).tarefa; } catch { return; }
+  porNumero("#rUltima", fmtData(t && t.ultima));
+  porNumero("#rProxima", agenda.ligado ? fmtData(t && t.proxima) : null);
+
+  const dias = agenda.repeticao === "dias-uteis" ? "de segunda a sexta"
+    : agenda.repeticao === "datas" ? "em " + agenda.datas.length + " dia(s) escolhido(s)"
+    : "todo dia";
+  const ate = agenda.duracao === "dias" ? ", pelos próximos " + agenda.dias + " dias" : "";
+  $("#situacaoTarefa").innerHTML = !t
+    ? "O robô <b>não está agendado</b>. Ligue o automático acima, ou use os botões para rodar na hora."
+    : (agenda.ligado
+      ? "Agendado para <b>" + agenda.horarios.join("</b> e <b>") + "</b>, " + dias + ate + "."
+      : "O automático está <b>desligado</b>. O robô só roda quando alguém clicar.");
+}
+
+// ---------- ligações ----------
+
+const fonte = new EventSource("/api/acompanhar");
+fonte.addEventListener("linha", (e) => {
+  if (!rodando) emAndamento(true);
+  acrescentar(JSON.parse(e.data));
+  marcarEtapas(textosDaFita());
+});
+fonte.addEventListener("fim", (e) => {
+  const ok = JSON.parse(e.data).ok;
+  emAndamento(false);
+  acrescentar(ok ? "=== pronto: as notas já estão no portal ===" : "=== o robô parou com erro; a foto da tela está na pasta logs ===");
+  marcarEtapas(textosDaFita());
+  carregar();
+});
+
+async function disparar(modo) {
+  $("#fita").textContent = "";
+  total = 0;
+  contar();
+  emAndamento(true);
+  const r = await fetch("/api/rodar", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ modo: modo }),
+  });
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    acrescentar(d.erro || "Não consegui iniciar o robô.");
+    emAndamento(false);
+  }
+}
+
+$("#rodar").onclick = () => disparar("completo");
+$("#colher").onclick = () => disparar("colher");
+$("#parar").onclick = () => fetch("/api/parar", { method: "POST" });
+$("#limpar").onclick = () => porLinhas([]);
+$("#sair").onclick = async () => { await fetch("/api/sair", { method: "POST" }); location.reload(); };
+
+$("#ligado").onchange = () => { agenda.ligado = $("#ligado").checked; aplicarAgenda(); };
+$("#addHorario").onclick = () => {
+  const h = $("#novoHorario").value;
+  if (!h || agenda.horarios.includes(h) || agenda.horarios.length >= MAX_HORARIOS) return;
+  agenda.horarios.push(h);
+  agenda.horarios.sort();
+  desenharHorarios();
+  conferirPendente();
+};
+$("#mesAnterior").onclick = () => { mesNaTela = new Date(mesNaTela.getFullYear(), mesNaTela.getMonth() - 1, 1); desenharCalendario(); };
+$("#mesProximo").onclick = () => { mesNaTela = new Date(mesNaTela.getFullYear(), mesNaTela.getMonth() + 1, 1); desenharCalendario(); };
+for (const r of document.querySelectorAll("input[name=rep]")) {
+  r.onchange = () => { agenda.repeticao = r.value; $("#blocoCalendario").hidden = r.value !== "datas"; conferirPendente(); };
+}
+for (const r of document.querySelectorAll("input[name=dur]")) r.onchange = () => { agenda.duracao = r.value; conferirPendente(); };
+$("#dias").oninput = conferirPendente;
+
+$("#salvarBotao").onclick = async () => {
+  agenda.dias = Number($("#dias").value) || 5;
+  $("#salvarBotao").disabled = true;
+  $("#salvo").textContent = "Salvando…";
+  const r = await fetch("/api/agenda", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(agenda),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) {
+    agendaSalva = JSON.stringify(agenda);
+    $("#salvo").innerHTML = '<span class="recado"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true">'
+      + '<path d="M3.5 8.4l3 3 6-6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      + (agenda.ligado ? "Agendamento salvo." : "Automático desligado.") + "</span>";
+    carregar();
+  } else {
+    $("#salvo").innerHTML = '<span class="recado">' + (d.erro || "Não consegui salvar.") + "</span>";
+    $("#salvarBotao").disabled = false;
+  }
+};
+
+desenharEtapas();
+carregar();
+setInterval(() => { if (!rodando) carregar(); }, 30000);
+</script>
+</body>
+</html>
